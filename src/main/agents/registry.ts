@@ -1,4 +1,4 @@
-import type { AgentInfo } from '@shared/types'
+import type { AgentInfo, AgentSettings } from '@shared/types'
 import type { AgentProvider } from './types'
 
 export class AgentRegistry {
@@ -20,7 +20,11 @@ export class AgentRegistry {
     return provider
   }
 
-  list(): AgentInfo[] {
-    return [...this.providers.values()].map((p) => p.info)
+  /** Lists agents with their effective settings, resolved by `settingsFor`. */
+  list(settingsFor: (id: string, defaults: AgentSettings) => AgentSettings): AgentInfo[] {
+    return [...this.providers.values()].map((p) => ({
+      ...p.info,
+      settings: p.defaultSettings ? settingsFor(p.info.id, p.defaultSettings) : null
+    }))
   }
 }

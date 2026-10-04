@@ -1,5 +1,7 @@
 import type {
+  AgentCheck,
   AgentInfo,
+  AgentSettings,
   Id,
   NewProjectInput,
   NewTaskInput,
@@ -36,6 +38,9 @@ export interface ForgeApi {
   }
   agents: {
     list(): Promise<AgentInfo[]>
+    /** Runs the agent's CLI with --version to tell whether it is installed. */
+    check(id: string): Promise<AgentCheck>
+    configure(id: string, patch: Partial<AgentSettings>): Promise<AgentInfo>
   }
   runs: {
     start(taskId: Id): Promise<Run>
@@ -60,6 +65,8 @@ export const Channels = {
   tasksRemove: 'tasks:remove',
   tasksReview: 'tasks:review',
   agentsList: 'agents:list',
+  agentsCheck: 'agents:check',
+  agentsConfigure: 'agents:configure',
   runsStart: 'runs:start',
   runsCancel: 'runs:cancel',
   runsGet: 'runs:get',

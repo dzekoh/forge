@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentInfo, Project, Task } from '@shared/types'
+import { AgentSettingsView } from './components/AgentSettingsView'
 import { ProjectForm } from './components/ProjectForm'
 import { ProjectSidebar } from './components/ProjectSidebar'
 import { TaskDetail } from './components/TaskDetail'
@@ -15,6 +16,7 @@ export function App(): React.JSX.Element {
   const [projectId, setProjectId] = useState<string | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [creatingProject, setCreatingProject] = useState(false)
+  const [showingAgents, setShowingAgents] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const projectIdRef = useRef(projectId)
   projectIdRef.current = projectId
@@ -70,12 +72,21 @@ export function App(): React.JSX.Element {
     <div className="app">
       <ProjectSidebar
         projects={projects}
-        selectedId={creatingProject ? null : projectId}
+        selectedId={creatingProject || showingAgents ? null : projectId}
+        agentsSelected={showingAgents}
         onSelect={(id) => {
           setCreatingProject(false)
+          setShowingAgents(false)
           setProjectId(id)
         }}
-        onNew={() => setCreatingProject(true)}
+        onNew={() => {
+          setShowingAgents(false)
+          setCreatingProject(true)
+        }}
+        onAgents={() => {
+          setCreatingProject(false)
+          setShowingAgents(true)
+        }}
       />
 
       <main className="main">
@@ -88,7 +99,13 @@ export function App(): React.JSX.Element {
           </div>
         )}
 
-        {creatingProject ? (
+        {showingAgents ? (
+          <AgentSettingsView
+            agents={agents}
+            guard={guard}
+            onUpdated={(updated) => setAgents((list) => list.map((a) => (a.id === updated.id ? updated : a)))}
+          />
+        ) : creatingProject ? (
           <ProjectForm
             canCancel={projects.length > 0}
             onCancel={() => setCreatingProject(false)}

@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { _electron as electron } from 'playwright-core'
 import electronPath from 'electron'
 
@@ -71,6 +71,30 @@ try {
   const branches = git('branch', '--format=%(refname:short)').trim()
   if (branches !== 'main') throw new Error(`Unexpected branches left: ${branches}`)
   if (git('status', '--porcelain').trim()) throw new Error('Repository checkout is dirty')
+
+  // Claude Code adapter, driven by the fake CLI used in unit tests (no network, no API usage).
+  await page.getByRole('button', { name: 'Agenti', exact: true }).click()
+  const claudeCard = page.locator('.agent-card', { hasText: 'Claude Code' })
+  await claudeCard.locator('input').first().fill(resolve('tests/fixtures/fake-claude.mjs'))
+  await claudeCard.getByRole('button', { name: 'Salva' }).click()
+  await claudeCard.getByRole('button', { name: 'Verifica' }).click()
+  await claudeCard.getByText('Disponibile: 9.9.9 (Claude Code)').waitFor()
+  if (shots) await page.screenshot({ path: join(shots, '5-agenti.png') })
+
+  await page.getByRole('button', { name: 'Demo', exact: true }).click()
+  await page.getByRole('button', { name: 'Modifica', exact: true }).click()
+  await page.getByPlaceholder('Es. npm ci && npm test').fill('test -f agent-output.md')
+  await page.getByRole('button', { name: 'Salva' }).click()
+  await page.getByPlaceholder('Nuovo task…').fill('Scrivi output')
+  await page.getByLabel('Agente').selectOption('claude-code')
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
+  await page.getByRole('button', { name: 'Esegui', exact: true }).click()
+  await page.getByText('Revisione richiesta.').waitFor({ timeout: 20000 })
+  await page.getByText('Creato agent-output.md per Scrivi output').first().waitFor()
+  if (shots) await page.screenshot({ path: join(shots, '6-claude-code.png') })
+  await page.getByRole('button', { name: 'Approva e unisci' }).click()
+  await page.getByText('Approvato: Unito in main').waitFor()
+  await readFile(join(repoPath, 'agent-output.md'), 'utf8')
 
   console.log('smoke test: OK')
 } finally {

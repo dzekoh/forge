@@ -16,7 +16,7 @@ export interface SimulatedAgentOptions {
  * Writing "#error" in the task makes it crash halfway.
  */
 export class SimulatedAgent implements AgentProvider {
-  readonly info: AgentInfo = {
+  readonly info: Omit<AgentInfo, 'settings'> = {
     id: 'simulated',
     name: 'Agente simulato',
     kind: 'simulated',
