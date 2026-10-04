@@ -31,7 +31,8 @@ export interface ForgeApi {
     create(input: NewTaskInput): Promise<Task>
     update(id: Id, patch: TaskPatch): Promise<Task>
     remove(id: Id): Promise<void>
-    review(id: Id, decision: ReviewDecision): Promise<Task>
+    /** Approve (commit + merge when safe) or reject (discard) the task's last run. */
+    review(id: Id, decision: ReviewDecision): Promise<{ task: Task; run: Run | null }>
   }
   agents: {
     list(): Promise<AgentInfo[]>

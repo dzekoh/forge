@@ -11,6 +11,7 @@ export function ProjectForm({ canCancel, onCancel, onSubmit }: Props): React.JSX
   const [name, setName] = useState('')
   const [repoPath, setRepoPath] = useState('')
   const [description, setDescription] = useState('')
+  const [testCommand, setTestCommand] = useState('')
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -24,7 +25,7 @@ export function ProjectForm({ canCancel, onCancel, onSubmit }: Props): React.JSX
       window.forge.projects
         .inspectRepo(path)
         .then((info) => !stale && setRepoInfo(info))
-        .catch(() => !stale && setRepoInfo({ exists: false, isGitRepo: false }))
+        .catch(() => !stale && setRepoInfo({ exists: false, isGitRepo: false, hasCommits: false }))
     }, 250)
     return () => {
       stale = true
@@ -45,13 +46,13 @@ export function ProjectForm({ canCancel, onCancel, onSubmit }: Props): React.JSX
       onSubmit={async (e) => {
         e.preventDefault()
         setBusy(true)
-        await onSubmit({ name, repoPath, description }).finally(() => setBusy(false))
+        await onSubmit({ name, repoPath, description, testCommand }).finally(() => setBusy(false))
       }}
     >
       <h2>Nuovo progetto</h2>
       <p className="muted">
-        Un progetto collega Forge a un repository locale. In questa versione Forge legge solo il percorso: nessun
-        file viene modificato.
+        Un progetto collega Forge a un repository Git locale. Ogni esecuzione lavora in un worktree separato su un
+        branch dedicato: il tuo checkout cambia solo quando approvi.
       </p>
 
       <label>
@@ -73,14 +74,30 @@ export function ProjectForm({ canCancel, onCancel, onSubmit }: Props): React.JSX
           </button>
         </div>
         {repoInfo && (
-          <span className={`hint ${repoInfo.isGitRepo ? 'ok' : 'warn'}`}>
+          <span className={`hint ${repoInfo.hasCommits ? 'ok' : 'warn'}`}>
             {!repoInfo.exists
               ? 'Cartella non trovata'
-              : repoInfo.isGitRepo
-                ? 'Repository Git rilevato'
-                : 'La cartella esiste ma non è un repository Git'}
+              : !repoInfo.isGitRepo
+                ? 'La cartella esiste ma non è un repository Git'
+                : repoInfo.hasCommits
+                  ? 'Repository Git rilevato'
+                  : 'Repository Git senza commit: serve almeno un commit per eseguire i task'}
           </span>
         )}
+      </label>
+
+      <label>
+        Comando di test (facoltativo)
+        <input
+          value={testCommand}
+          onChange={(e) => setTestCommand(e.target.value)}
+          placeholder="Es. npm ci && npm test"
+          className="mono"
+        />
+        <span className="hint muted">
+          Viene eseguito nel worktree dopo ogni esecuzione. Il worktree parte pulito: includi l&apos;installazione
+          delle dipendenze se serve.
+        </span>
       </label>
 
       <label>

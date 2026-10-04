@@ -444,3 +444,32 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+.mono,
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.test-command {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cmd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.small-btn {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.outcome {
+  margin-top: 10px;
+  border-color: var(--ok);
+}
+.outcome.warn {
+  border-color: var(--warn);
+}

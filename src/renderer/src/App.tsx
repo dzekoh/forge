@@ -115,6 +115,10 @@ export function App(): React.JSX.Element {
                   setTaskId(created.id)
                 }
               }}
+              onUpdateProject={async (patch) => {
+                const updated = await guard(() => api.projects.update(project.id, patch))
+                if (updated) setProjects((list) => list.map((p) => (p.id === updated.id ? updated : p)))
+              }}
               onDeleteProject={async () => {
                 if (!confirm(`Eliminare il progetto "${project.name}" e tutti i suoi task?`)) return
                 const ok = await guard(() => api.projects.remove(project.id).then(() => true))
