@@ -55,8 +55,10 @@ export function TaskDetail({ task, agents, guard, onChange, onDeleted }: Props):
   }
 
   async function review(decision: 'approve' | 'reject'): Promise<void> {
-    const updated = await guard(() => api.tasks.review(task.id, decision))
-    if (updated) onChange(updated)
+    const res = await guard(() => api.tasks.review(task.id, decision))
+    if (!res) return
+    if (res.run) setRun(res.run)
+    onChange(res.task)
   }
 
   async function remove(): Promise<void> {
@@ -100,24 +102,26 @@ export function TaskDetail({ task, agents, guard, onChange, onDeleted }: Props):
 
       {task.status === 'review' && (
         <div className="card review">
-          <strong>Revisione richiesta.</strong> Controlla diff e test, poi decidi. L&apos;agente simulato non applica
-          nulla al repository.
+          <strong>Revisione richiesta.</strong> Controlla diff e test, poi decidi. <em>Approva</em> fa il commit sul
+          branch e lo unisce nel branch corrente del repository (se non ci sono modifiche non committate);{' '}
+          <em>Rifiuta</em> scarta worktree e branch.
           <div className="row end">
             <button className="btn" onClick={() => void review('reject')}>
               Rifiuta
             </button>
             <button className="btn primary" onClick={() => void review('approve')}>
-              Approva
+              Approva e unisci
             </button>
           </div>
         </div>
       )}
       {task.status === 'failed' && (
         <div className="card review failed">
-          L&apos;esecuzione non è andata a buon fine.
+          L&apos;esecuzione non è andata a buon fine. Puoi rieseguirla, oppure scartare le modifiche e rimettere il
+          task in coda.
           <div className="row end">
             <button className="btn" onClick={() => void review('reject')}>
-              Rimetti in coda
+              Scarta e rimetti in coda
             </button>
           </div>
         </div>
@@ -128,7 +132,23 @@ export function TaskDetail({ task, agents, guard, onChange, onDeleted }: Props):
           <div className="run-meta muted small">
             Esecuzione del {formatTime(run.startedAt)} · {runStatusLabel[run.status]}
             {run.error && <span className="error-text"> · {run.error}</span>}
+            {run.workspace && (
+              <>
+                {' '}
+                · branch <code>{run.workspace.branch}</code>
+              </>
+            )}
           </div>
+          {run.review && (
+            <div className={`card outcome ${run.review.merged || run.review.decision === 'reject' ? '' : 'warn'}`}>
+              {run.review.decision === 'approve' ? 'Approvato' : 'Rifiutato'}: {run.review.message}
+              {run.review.keptBranch && (
+                <div className="small muted">
+                  Per unirlo: <code>git merge {run.review.keptBranch}</code>
+                </div>
+              )}
+            </div>
+          )}
 
           <h3>Log</h3>
           <div className="log" ref={logRef}>
@@ -146,20 +166,27 @@ export function TaskDetail({ task, agents, guard, onChange, onDeleted }: Props):
               <p>{run.result.summary}</p>
               <h3>Modifiche proposte</h3>
               <DiffView changes={run.result.changes} />
-              {run.result.tests && (
+              <h3>Test</h3>
+              {run.result.tests ? (
                 <>
-                  <h3>
-                    Test{' '}
-                    <span className={`badge ${run.result.tests.failed ? 'warn' : 'ok'}`}>
-                      {run.result.tests.passed} ok · {run.result.tests.failed} falliti
+                  <div className="row">
+                    <span className={`badge ${run.result.tests.ok ? 'ok' : 'warn'}`}>
+                      {run.result.tests.ok
+                        ? 'superati'
+                        : run.result.tests.exitCode === null
+                          ? 'interrotti (timeout)'
+                          : `falliti · exit ${run.result.tests.exitCode}`}
                     </span>
-                  </h3>
+                    <span className="muted small">{(run.result.tests.durationMs / 1000).toFixed(1)}s</span>
+                  </div>
                   <pre className="test-output">
                     $ {run.result.tests.command}
                     {'\n'}
-                    {run.result.tests.output}
+                    {run.result.tests.output || '(nessun output)'}
                   </pre>
                 </>
+              ) : (
+                <p className="muted">Nessun comando di test configurato per questo progetto.</p>
               )}
             </>
           )}

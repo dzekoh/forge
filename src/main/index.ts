@@ -8,6 +8,7 @@ import { SimulatedAgent } from './agents/simulatedAgent'
 import { Repository } from './data/repository'
 import { registerIpc } from './ipc'
 import { RunManager } from './runs/runManager'
+import { Workspaces } from './workspace/workspaces'
 
 const devServerUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
 const rendererFile = join(__dirname, '../renderer/index.html')
@@ -72,8 +73,10 @@ async function main(): Promise<void> {
     isKnownAgent: (id) => agents.has(id),
     defaultAgentId: 'simulated'
   })
-  const runs = new RunManager(repo, agents, broadcast)
-  registerIpc({ repo, agents, runs, isTrustedSender: isTrustedUrl })
+  const workspaces = new Workspaces(join(dataDir, 'worktrees'))
+  const runs = new RunManager(repo, agents, workspaces, broadcast)
+  await runs.recoverInterrupted()
+  registerIpc({ repo, agents, runs, workspaces, isTrustedSender: isTrustedUrl })
 
   createWindow()
 

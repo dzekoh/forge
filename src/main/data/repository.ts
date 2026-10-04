@@ -5,8 +5,9 @@ import type {
   NewTaskInput,
   Project,
   ProjectPatch,
-  ReviewDecision,
   Run,
+  RunReview,
+  RunWorkspace,
   Task,
   TaskPatch,
   TaskStatus
@@ -21,7 +22,7 @@ import {
   requireString
 } from './validate'
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 const MAX_RUNS_PER_TASK = 10
 
 export interface ForgeData {
@@ -32,6 +33,25 @@ export interface ForgeData {
 }
 
 export const emptyData = (): ForgeData => ({ version: SCHEMA_VERSION, projects: [], tasks: [], runs: [] })
+
+/** Upgrades data written by older versions of Forge. Each step bumps the version by one. */
+export function migrate(raw: { version: number } & Record<string, unknown>): ForgeData {
+  const data = raw as unknown as ForgeData & { version: number }
+  if (data.version === 1) {
+    for (const p of data.projects) p.testCommand ??= ''
+    for (const r of data.runs) {
+      r.workspace ??= null
+      r.review ??= null
+      const tests = r.result?.tests as unknown as { command: string; failed?: number; output: string } | null
+      if (r.result && tests && !('ok' in tests)) {
+        r.result.tests = { command: tests.command, ok: !tests.failed, exitCode: null, durationMs: 0, output: tests.output }
+      }
+    }
+    data.version = 2
+  }
+  if (data.version !== SCHEMA_VERSION) throw new Error(`Versione dati non supportata: ${data.version}`)
+  return data
+}
 
 export class NotFoundError extends Error {
   constructor(what: string, id: string) {
@@ -55,6 +75,8 @@ export interface RepositoryOptions {
 export class Repository {
   private data: ForgeData = emptyData()
   private readonly now: () => Date
+  /** Runs found "running" at startup (crash or forced quit); their worktrees need cleanup. */
+  interruptedRuns: Run[] = []
 
   private constructor(
     private readonly file: JsonFile<ForgeData>,
@@ -66,10 +88,9 @@ export class Repository {
   static async open(path: string, opts: RepositoryOptions): Promise<Repository> {
     const repo = new Repository(new JsonFile(path, emptyData), opts)
     const loaded = await repo.file.read()
-    if (loaded.version !== SCHEMA_VERSION) {
-      throw new Error(`Versione dati non supportata: ${loaded.version}`)
-    }
-    repo.data = loaded
+    const version = loaded.version
+    repo.data = migrate(loaded as unknown as { version: number } & Record<string, unknown>)
+    if (version !== SCHEMA_VERSION) await repo.save()
     await repo.recoverInterruptedRuns()
     return repo
   }
@@ -90,6 +111,7 @@ export class Repository {
       run.status = 'interrupted'
       run.finishedAt = this.stamp()
       run.error = "Esecuzione interrotta alla chiusura dell'app"
+      this.interruptedRuns.push(run)
       const task = this.data.tasks.find((t) => t.id === run.taskId)
       if (task && task.status === 'running') {
         task.status = 'todo'
@@ -120,6 +142,7 @@ export class Repository {
       name: requireString(obj.name, 'Nome', { max: 100 }),
       repoPath: requireAbsolutePath(obj.repoPath, 'Percorso repository', isAbsolute),
       description: optionalString(obj.description, 'Descrizione') ?? '',
+      testCommand: optionalString(obj.testCommand, 'Comando test', { max: 2000 }) ?? '',
       createdAt: ts,
       updatedAt: ts
     }
@@ -137,6 +160,8 @@ export class Repository {
     }
     const description = optionalString(obj.description, 'Descrizione')
     if (description !== undefined) project.description = description
+    const testCommand = optionalString(obj.testCommand, 'Comando test', { max: 2000 })
+    if (testCommand !== undefined) project.testCommand = testCommand
     project.updatedAt = this.stamp()
     await this.save()
     return project
@@ -225,20 +250,6 @@ export class Repository {
     return task
   }
 
-  /** Human review of a task's last run: approve closes it, reject sends it back to "todo". */
-  async reviewTask(id: string, decision: ReviewDecision): Promise<Task> {
-    const task = this.getTask(requireId(id))
-    if (task.status !== 'review' && task.status !== 'failed') {
-      throw new ValidationError('Il task non è in revisione')
-    }
-    if (decision === 'approve') {
-      if (task.status !== 'review') throw new ValidationError('Non si può approvare un task fallito')
-      return this.setTaskStatus(task.id, 'done')
-    }
-    if (decision === 'reject') return this.setTaskStatus(task.id, 'todo')
-    throw new ValidationError('Decisione non valida')
-  }
-
   // ---- Runs ---------------------------------------------------------------
 
   getRun(id: string): Run | null {
@@ -263,7 +274,9 @@ export class Repository {
       startedAt: this.stamp(),
       finishedAt: null,
       events: [],
+      workspace: null,
       result: null,
+      review: null,
       error: null
     }
     this.data.runs.push(run)
@@ -284,6 +297,26 @@ export class Repository {
     task.updatedAt = this.stamp()
     await this.save()
     return { run: stored, task }
+  }
+
+  async setRunWorkspace(runId: string, workspace: RunWorkspace | null): Promise<Run> {
+    const run = this.getRun(runId)
+    if (!run) throw new NotFoundError('Esecuzione', runId)
+    run.workspace = workspace
+    await this.save()
+    return run
+  }
+
+  async recordReview(runId: string, review: RunReview, taskStatus: TaskStatus): Promise<{ run: Run; task: Task }> {
+    const run = this.getRun(runId)
+    if (!run) throw new NotFoundError('Esecuzione', runId)
+    run.review = review
+    if (run.workspace) run.workspace.active = false
+    const task = this.getTask(run.taskId)
+    task.status = taskStatus
+    task.updatedAt = this.stamp()
+    await this.save()
+    return { run, task }
   }
 
   private pruneRuns(taskId: string): void {

@@ -7,9 +7,11 @@ export type IsoDate = string
 export interface Project {
   id: Id
   name: string
-  /** Absolute path of the local repository. Forge never writes here in the MVP. */
+  /** Absolute path of the local Git repository. Agents never write here directly: they work in a worktree. */
   repoPath: string
   description: string
+  /** Shell command run in the run's worktree to test the changes (e.g. "npm ci && npm test"). Empty = no tests. */
+  testCommand: string
   createdAt: IsoDate
   updatedAt: IsoDate
 }
@@ -47,9 +49,31 @@ export interface FileChange {
 
 export interface TestReport {
   command: string
-  passed: number
-  failed: number
+  ok: boolean
+  /** Null when the process was killed (timeout or cancel). */
+  exitCode: number | null
+  durationMs: number
+  /** Tail of stdout + stderr. */
   output: string
+}
+
+/** Isolated checkout where a run's agent works: a git worktree on its own branch. */
+export interface RunWorkspace {
+  path: string
+  branch: string
+  baseCommit: string
+  /** False once the worktree has been removed (after review or cleanup). */
+  active: boolean
+}
+
+export interface RunReview {
+  decision: ReviewDecision
+  at: IsoDate
+  /** True when the branch was merged into the repository's current branch. */
+  merged: boolean
+  /** Branch left in the repository for the user to merge by hand, if any. */
+  keptBranch: string | null
+  message: string
 }
 
 export interface RunResult {
@@ -66,7 +90,9 @@ export interface Run {
   startedAt: IsoDate
   finishedAt: IsoDate | null
   events: RunEvent[]
+  workspace: RunWorkspace | null
   result: RunResult | null
+  review: RunReview | null
   error: string | null
 }
 
@@ -80,6 +106,8 @@ export interface AgentInfo {
 export interface RepoInfo {
   exists: boolean
   isGitRepo: boolean
+  /** Git repo with at least one commit: required to create worktrees. */
+  hasCommits: boolean
 }
 
 // Inputs accepted by the API. Validated again in the main process.
@@ -87,12 +115,14 @@ export interface NewProjectInput {
   name: string
   repoPath: string
   description?: string
+  testCommand?: string
 }
 
 export interface ProjectPatch {
   name?: string
   repoPath?: string
   description?: string
+  testCommand?: string
 }
 
 export interface NewTaskInput {

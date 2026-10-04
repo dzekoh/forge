@@ -4,13 +4,13 @@ App desktop local-first per orchestrare coding agent multi-provider: un'unica in
 configurare provider e modelli, definire ruoli e workflow, eseguire task su repository locali e
 revisionare le modifiche tramite diff e test.
 
-**Stato: MVP, fasi 1–4.** Gestione di progetti e task con dati locali e un agente simulato che
-percorre l'intero workflow (esecuzione → log in streaming → diff → test → revisione) senza chiamare
-API e senza toccare i repository. L'integrazione con Claude e Codex è la fase successiva.
+**Stato: MVP.** Gestione di progetti e task con dati locali e un agente simulato che percorre l'intero
+workflow su un repository Git reale: worktree isolato → log in streaming → diff → test del progetto →
+revisione → merge. Nessuna chiamata API. L'integrazione con Claude e Codex è la fase successiva.
 
 ## Avvio rapido
 
-Requisiti: Node.js 20+ e npm.
+Requisiti: Node.js 20+, npm e `git` nel PATH.
 
 ```bash
 npm install
@@ -31,14 +31,19 @@ Su Linux senza display lo smoke test va lanciato con `xvfb-run -a npm run test:e
 
 ## Provare il workflow
 
-1. Crea un progetto indicando il percorso di un repository locale (viene solo letto per verificare che esista e sia Git).
-2. Aggiungi un task e premi **Esegui**: l'agente simulato mostra i passi nel log, poi propone un diff e un report dei test.
-3. Il task passa **In revisione**: **Approva** lo chiude, **Rifiuta** lo rimette in coda.
+1. Crea un progetto indicando un repository Git locale con almeno un commit e, se vuoi, un comando di test
+   (es. `npm ci && npm test`).
+2. Aggiungi un task e premi **Esegui**. Forge crea un `git worktree` su un branch `forge/…`, l'agente
+   simulato ci scrive una nota Markdown, poi Forge raccoglie il diff ed esegue il comando di test nel worktree.
+3. Il task passa **In revisione** (o **Fallito** se i test falliscono):
+   - **Approva e unisci** fa il commit sul branch e lo unisce nel branch corrente del repository. Se il
+     checkout ha modifiche non committate o il merge va in conflitto, il branch resta lì da unire a mano.
+   - **Rifiuta** elimina worktree e branch.
 
-Scenari dell'agente simulato, scelti dal testo del task: `#fail` fa fallire i test, `#error` simula un crash.
-Un'esecuzione si può annullare mentre è in corso.
+Il tuo checkout non cambia mai finché non approvi. Scrivendo `#error` nel task l'agente simula un crash;
+un'esecuzione si può annullare mentre è in corso (anche durante i test).
 
-I dati sono in `forge-data.json` nella cartella dati dell'utente di Electron
+I dati sono in `forge-data.json` e i worktree in `worktrees/`, nella cartella dati dell'utente di Electron
 (`FORGE_DATA_DIR` permette di sceglierne un'altra).
 
 Architettura e decisioni: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
