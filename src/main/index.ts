@@ -3,6 +3,8 @@ import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, shell } from 'electron'
 import { Channels } from '@shared/api'
 import type { RunUpdate } from '@shared/types'
+import { ClaudeCodeAgent } from './agents/cli/claudeCodeAgent'
+import { CodexAgent } from './agents/cli/codexAgent'
 import { AgentRegistry } from './agents/registry'
 import { SimulatedAgent } from './agents/simulatedAgent'
 import { Repository } from './data/repository'
@@ -68,7 +70,10 @@ async function main(): Promise<void> {
   // No permission (camera, notifications, ...) is ever needed by the UI.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 
-  const agents = new AgentRegistry().register(new SimulatedAgent())
+  const agents = new AgentRegistry()
+    .register(new SimulatedAgent())
+    .register(new ClaudeCodeAgent())
+    .register(new CodexAgent())
   const repo = await Repository.open(join(dataDir, 'forge-data.json'), {
     isKnownAgent: (id) => agents.has(id),
     defaultAgentId: 'simulated'

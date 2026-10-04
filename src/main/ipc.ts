@@ -1,9 +1,10 @@
 import { isAbsolute } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { Channels } from '@shared/api'
+import type { AgentSettings } from '@shared/types'
 import type { AgentRegistry } from './agents/registry'
 import type { Repository } from './data/repository'
-import { requireAbsolutePath } from './data/validate'
+import { requireAbsolutePath, requireString, ValidationError } from './data/validate'
 import type { RunManager } from './runs/runManager'
 import type { Workspaces } from './workspace/workspaces'
 
@@ -44,7 +45,25 @@ export function registerIpc({ repo, agents, runs, workspaces, isTrustedSender }:
   handle(Channels.tasksRemove, (id: string) => runs.removeTask(id))
   handle(Channels.tasksReview, (id: string, decision) => runs.review(id, decision as never))
 
-  handle(Channels.agentsList, () => agents.list())
+  const settingsFor = (id: string, defaults: AgentSettings): AgentSettings => repo.getAgentSettings(id, defaults)
+  const configurable = (id: unknown) => {
+    const agent = agents.get(requireString(id, 'Agente', { max: 64 }))
+    if (!agent.defaultSettings) throw new ValidationError(`${agent.info.name} non ha impostazioni`)
+    return { agent, defaults: agent.defaultSettings }
+  }
+
+  handle(Channels.agentsList, () => agents.list(settingsFor))
+  handle(Channels.agentsCheck, async (id: unknown) => {
+    const { agent, defaults } = configurable(id)
+    return agent.check
+      ? agent.check(settingsFor(agent.info.id, defaults))
+      : { available: true, version: null, error: null }
+  })
+  handle(Channels.agentsConfigure, async (id: unknown, patch: unknown) => {
+    const { agent, defaults } = configurable(id)
+    await repo.updateAgentSettings(agent.info.id, defaults, patch)
+    return agents.list(settingsFor).find((a) => a.id === agent.info.id)!
+  })
 
   handle(Channels.runsStart, (taskId: string) => runs.start(taskId))
   handle(Channels.runsCancel, (runId: string) => runs.cancel(runId))

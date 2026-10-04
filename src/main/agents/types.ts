@@ -1,4 +1,4 @@
-import type { AgentInfo, Project, RunEventKind, Task } from '@shared/types'
+import type { AgentCheck, AgentInfo, AgentSettings, Project, RunEventKind, Task } from '@shared/types'
 
 export interface AgentContext {
   /** Aborted when the user cancels the run. Providers must stop promptly. */
@@ -15,6 +15,8 @@ export interface AgentRunInput {
    * an agent may write; the project's own checkout is never touched.
    */
   workspacePath: string
+  /** Effective settings (defaults + user overrides) for configurable agents. */
+  settings: AgentSettings | null
 }
 
 export interface AgentOutcome {
@@ -29,8 +31,13 @@ export interface AgentOutcome {
  * result to the user for review.
  */
 export interface AgentProvider {
-  readonly info: AgentInfo
+  /** Static description; `settings` is filled in from the user's configuration when listed. */
+  readonly info: Omit<AgentInfo, 'settings'>
+  /** Present for configurable agents (command-line ones). */
+  readonly defaultSettings?: AgentSettings
   run(input: AgentRunInput, ctx: AgentContext): Promise<AgentOutcome>
+  /** Tells whether the agent can run on this machine (e.g. its CLI is installed). */
+  check?(settings: AgentSettings): Promise<AgentCheck>
 }
 
 export class AbortedError extends Error {

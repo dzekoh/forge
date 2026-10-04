@@ -86,7 +86,7 @@ describe('Repository', () => {
     expect(reopened.interruptedRuns).toHaveLength(1)
   })
 
-  it('migrates version 1 data', async () => {
+  it('migrates version 1 data to the current schema', async () => {
     await mkdir(join(dir, 'data'), { recursive: true })
     const v1 = {
       version: 1,
@@ -103,7 +103,9 @@ describe('Repository', () => {
     const repo = await open()
     expect(repo.listProjects()[0]?.testCommand).toBe('')
     expect(repo.getRun('r1')).toMatchObject({ workspace: null, review: null, result: { tests: { ok: false } } })
-    expect(JSON.parse(await readFile(dataPath, 'utf8')).version).toBe(2)
+    const saved = JSON.parse(await readFile(dataPath, 'utf8'))
+    expect(saved.version).toBe(3)
+    expect(saved.settings).toEqual({ agents: {} })
   })
 
   it('refuses data written by an unknown schema version', async () => {

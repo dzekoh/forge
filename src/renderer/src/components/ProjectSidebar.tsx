@@ -3,11 +3,13 @@ import type { Project } from '@shared/types'
 interface Props {
   projects: Project[]
   selectedId: string | null
+  agentsSelected: boolean
   onSelect(id: string): void
   onNew(): void
+  onAgents(): void
 }
 
-export function ProjectSidebar({ projects, selectedId, onSelect, onNew }: Props): React.JSX.Element {
+export function ProjectSidebar({ projects, selectedId, agentsSelected, onSelect, onNew, onAgents }: Props): React.JSX.Element {
   return (
     <aside className="sidebar">
       <div className="brand">Forge</div>
@@ -26,6 +28,10 @@ export function ProjectSidebar({ projects, selectedId, onSelect, onNew }: Props)
       </nav>
       <button className="btn ghost" onClick={onNew}>
         + Nuovo progetto
+      </button>
+      <div className="sidebar-spacer" />
+      <button className={`nav-item${agentsSelected ? ' active' : ''}`} onClick={onAgents}>
+        Agenti
       </button>
     </aside>
   )

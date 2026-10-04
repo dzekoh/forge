@@ -62,7 +62,12 @@ export class RunManager {
         emit('log', `Branch ${working.workspace.branch} da ${working.workspace.baseCommit.slice(0, 8)}`)
 
         const outcome = await agent.run(
-          { task: { ...task }, project: { ...project }, workspacePath: working.workspace.path },
+          {
+            task: { ...task },
+            project: { ...project },
+            workspacePath: working.workspace.path,
+            settings: agent.defaultSettings ? this.repo.getAgentSettings(agent.info.id, agent.defaultSettings) : null
+          },
           { signal: controller.signal, emit }
         )
         if (controller.signal.aborted) throw new AbortedError()

@@ -6,7 +6,8 @@ revisionare le modifiche tramite diff e test.
 
 **Stato: MVP.** Gestione di progetti e task con dati locali e un agente simulato che percorre l'intero
 workflow su un repository Git reale: worktree isolato → log in streaming → diff → test del progetto →
-revisione → merge. Nessuna chiamata API. L'integrazione con Claude e Codex è la fase successiva.
+revisione → merge. Nessuna chiamata API. Gli stessi passi funzionano con **Claude Code** e **Codex**
+tramite le loro CLI.
 
 ## Avvio rapido
 
@@ -42,6 +43,20 @@ Su Linux senza display lo smoke test va lanciato con `xvfb-run -a npm run test:e
 
 Il tuo checkout non cambia mai finché non approvi. Scrivendo `#error` nel task l'agente simula un crash;
 un'esecuzione si può annullare mentre è in corso (anche durante i test).
+
+## Claude Code e Codex
+
+Installa e fai il login della CLI che vuoi usare (`claude` di Claude Code, `codex` di Codex), poi in
+**Agenti** controlla il comando con **Verifica** e, se vuoi, scegli un modello. Quando crei un task,
+scegli l'agente dal menu. Forge non salva chiavi API: ogni CLI usa il proprio login o la chiave già
+presente nell'ambiente (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`).
+
+- Claude Code gira con `--print --output-format stream-json --permission-mode acceptEdits`: modifica i
+  file del worktree, mentre ciò che richiederebbe un permesso (es. comandi shell) viene negato.
+- Codex gira con `codex exec --json --sandbox workspace-write`: può eseguire comandi, ma scrive solo nel
+  worktree e senza rete.
+
+I test usano CLI finte (`tests/fixtures/`) con lo stesso formato di output, quindi non consumano API.
 
 I dati sono in `forge-data.json` e i worktree in `worktrees/`, nella cartella dati dell'utente di Electron
 (`FORGE_DATA_DIR` permette di sceglierne un'altra).

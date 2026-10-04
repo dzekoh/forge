@@ -22,7 +22,9 @@ const api: ForgeApi = {
     review: (id, decision) => invoke(Channels.tasksReview, id, decision)
   },
   agents: {
-    list: () => invoke(Channels.agentsList)
+    list: () => invoke(Channels.agentsList),
+    check: (id) => invoke(Channels.agentsCheck, id),
+    configure: (id, patch) => invoke(Channels.agentsConfigure, id, patch)
   },
   runs: {
     start: (taskId) => invoke(Channels.runsStart, taskId),

@@ -27,6 +27,8 @@
 │ ipc.ts        handler IPC: verifica mittente, inoltra ai servizi     │
 │ data/         Repository (stato + validazione) su JsonFile atomico   │
 │ agents/       AgentProvider, AgentRegistry, SimulatedAgent           │
+│ agents/cli/   CliAgent, ClaudeCodeAgent, CodexAgent, prompt          │
+│ process/      runProcess: spawn, stream righe, timeout, kill albero  │
 │ workspace/    Workspaces (git worktree, diff, commit, merge), test   │
 │ runs/         RunManager: worktree → agente → diff → test → review   │
 └──────────────▲───────────────────────────────────┬──────────────────┘
@@ -103,22 +105,36 @@ includerne l'installazione (es. `npm ci && npm test`).
 
 ```ts
 interface AgentProvider {
-  info: AgentInfo                 // id, nome, tipo: simulated | cli | api
-  run(input: { task, project, workspacePath }, ctx: { signal, emit }): Promise<{ summary }>
+  info: AgentInfo                       // id, nome, tipo: simulated | cli | api
+  defaultSettings?: AgentSettings       // { command, model } per gli agenti configurabili
+  run(input: { task, project, workspacePath, settings }, ctx: { signal, emit }): Promise<{ summary }>
+  check?(settings): Promise<AgentCheck> // es. `<cli> --version`
 }
 ```
 
-Un provider riceve il task, il progetto e il percorso del worktree, scrive solo lì, trasmette eventi con
-`emit`, rispetta `signal` per l'annullamento e restituisce un riepilogo. Diff e test li ricava Forge dal
-worktree, quindi sono gli stessi per qualunque provider.
+Un provider riceve il task, il progetto, il percorso del worktree e le impostazioni effettive, scrive
+solo nel worktree, trasmette eventi con `emit`, rispetta `signal` per l'annullamento e restituisce un
+riepilogo. Diff e test li ricava Forge dal worktree, quindi sono gli stessi per qualunque provider.
 
-`SimulatedAgent` implementa il contratto senza rete: scrive una nota Markdown nel worktree.
+- `SimulatedAgent`: nessuna rete, scrive una nota Markdown nel worktree.
+- `CliAgent` (base): avvia la CLI con `cwd` nel worktree, passa il prompt (`agents/cli/prompt.ts`) su
+  stdin, legge JSON riga per riga da stdout, timeout 30 min, uccide l'albero di processi su annulla.
+  Comando inesistente, codice di uscita ≠ 0 e fallimenti riportati nello stream diventano errori leggibili.
+- `ClaudeCodeAgent`: `claude --print --output-format stream-json --verbose --permission-mode acceptEdits
+  --no-session-persistence [--model M]`. Mappa `assistant` (testo, tool_use) e `result` (esito, costo).
+- `CodexAgent`: `codex exec --json --sandbox workspace-write --cd <worktree> --ephemeral --color never
+  [--model M] -`. Mappa `item.*` (messaggi, comandi, file modificati), `turn.completed` (token) e
+  `turn.failed` (errore).
+
+Le impostazioni (comando e modello) stanno in `settings.agents` nel file dati (schema v3). Forge non
+gestisce credenziali: le CLI usano il loro login o le variabili d'ambiente dell'utente. Il modello è
+validato con una whitelist di caratteri; il comando è un eseguibile senza argomenti, lanciato senza shell.
 
 ## Prossimi passi
 
-1. **Provider Claude e Codex**: adapter `cli` (Claude Code, Codex CLI) eseguiti con `cwd` nel worktree,
-   e/o adapter `api`. Chiavi API nel portachiavi di sistema (`safeStorage`), mai nel file JSON.
-2. **Configurazione provider/modelli**, poi **ruoli** (prompt + modello + permessi) e **workflow**
-   (sequenze di ruoli, es. pianifica → implementa → revisiona).
-3. App pacchettizzata su macOS: il PATH dei processi avviati dal Finder non include quello della shell,
-   quindi `git`/`npm` vanno risolti esplicitamente.
+1. **Ruoli** (prompt + agente + modello + permessi) e **workflow** (sequenze di ruoli, es. pianifica →
+   implementa → revisiona), riusando `AgentProvider` e il worktree della stessa esecuzione.
+2. Adapter `api` (chiamate dirette ai modelli) con chiavi nel portachiavi di sistema (`safeStorage`).
+3. App pacchettizzata: su macOS il PATH dei processi avviati dal Finder non include quello della shell,
+   quindi `git`, `claude`, `codex`, `npm` vanno risolti esplicitamente; su Windows le CLI npm sono script
+   `.cmd` che richiedono la shell.

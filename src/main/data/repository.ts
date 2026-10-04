@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isAbsolute } from 'node:path'
 import type {
+  AgentSettings,
   NewProjectInput,
   NewTaskInput,
   Project,
@@ -22,17 +23,29 @@ import {
   requireString
 } from './validate'
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 const MAX_RUNS_PER_TASK = 10
+
+export interface ForgeSettings {
+  /** Per-agent overrides of the provider defaults, keyed by agent id. */
+  agents: Record<string, AgentSettings>
+}
 
 export interface ForgeData {
   version: number
   projects: Project[]
   tasks: Task[]
   runs: Run[]
+  settings: ForgeSettings
 }
 
-export const emptyData = (): ForgeData => ({ version: SCHEMA_VERSION, projects: [], tasks: [], runs: [] })
+export const emptyData = (): ForgeData => ({
+  version: SCHEMA_VERSION,
+  projects: [],
+  tasks: [],
+  runs: [],
+  settings: { agents: {} }
+})
 
 /** Upgrades data written by older versions of Forge. Each step bumps the version by one. */
 export function migrate(raw: { version: number } & Record<string, unknown>): ForgeData {
@@ -48,6 +61,10 @@ export function migrate(raw: { version: number } & Record<string, unknown>): For
       }
     }
     data.version = 2
+  }
+  if (data.version === 2) {
+    data.settings ??= { agents: {} }
+    data.version = 3
   }
   if (data.version !== SCHEMA_VERSION) throw new Error(`Versione dati non supportata: ${data.version}`)
   return data
@@ -248,6 +265,30 @@ export class Repository {
     task.updatedAt = this.stamp()
     await this.save()
     return task
+  }
+
+  // ---- Agent settings -----------------------------------------------------
+
+  getAgentSettings(agentId: string, defaults: AgentSettings): AgentSettings {
+    return { ...defaults, ...this.data.settings.agents[agentId] }
+  }
+
+  async updateAgentSettings(agentId: string, defaults: AgentSettings, patch: unknown): Promise<AgentSettings> {
+    const obj = requireObject(patch, 'impostazioni')
+    const next = this.getAgentSettings(agentId, defaults)
+    if (obj.command !== undefined) {
+      const command = requireString(obj.command, 'Comando', { max: 500 })
+      if (/[\r\n\0]/.test(command)) throw new ValidationError('Comando: carattere non valido')
+      next.command = command
+    }
+    if (obj.model !== undefined) {
+      const model = optionalString(obj.model, 'Modello', { max: 100 }) ?? ''
+      if (!/^[A-Za-z0-9._:\/\[\]@-]*$/.test(model)) throw new ValidationError('Modello: caratteri non validi')
+      next.model = model
+    }
+    this.data.settings.agents[agentId] = next
+    await this.save()
+    return { ...next }
   }
 
   // ---- Runs ---------------------------------------------------------------

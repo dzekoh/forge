@@ -96,11 +96,27 @@ export interface Run {
   error: string | null
 }
 
+/** User settings for a command-line agent. Credentials are never stored by Forge: the CLI uses its own login. */
+export interface AgentSettings {
+  /** Executable name or absolute path (no arguments), e.g. "claude" or "/usr/local/bin/codex". */
+  command: string
+  /** Model passed to the CLI; empty = the CLI's default. */
+  model: string
+}
+
 export interface AgentInfo {
   id: string
   name: string
   kind: 'simulated' | 'cli' | 'api'
   description: string
+  /** Current settings for configurable agents, null for the others. */
+  settings: AgentSettings | null
+}
+
+export interface AgentCheck {
+  available: boolean
+  version: string | null
+  error: string | null
 }
 
 export interface RepoInfo {

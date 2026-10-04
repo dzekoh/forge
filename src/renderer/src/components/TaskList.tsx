@@ -108,7 +108,9 @@ export function TaskList(props: Props): React.JSX.Element {
           placeholder="Descrizione (facoltativa)"
           rows={2}
         />
-        <span className="muted small">Agente simulato: scrive una nota nel worktree; #error simula un crash.</span>
+        {agentId === 'simulated' && (
+          <span className="muted small">Agente simulato: scrive una nota nel worktree; #error simula un crash.</span>
+        )}
         <div className="row">
           <select value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="Agente">
             {agents.map((a) => (
