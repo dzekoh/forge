@@ -6,12 +6,12 @@
   "main": "./out/main/index.js",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/ensure-electron.mjs && electron-vite dev",
     "build": "electron-vite build",
-    "start": "electron-vite preview",
+    "start": "node scripts/ensure-electron.mjs && electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "test:e2e": "npm run build && node scripts/smoke.mjs",
+    "test:e2e": "npm run build && node scripts/ensure-electron.mjs && node scripts/smoke.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
