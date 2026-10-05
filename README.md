@@ -28,6 +28,16 @@ npm run dev        # app in modalità sviluppo con hot reload
 | `npm run test:e2e`   | Build + smoke test end-to-end dell'app Electron (Playwright)    |
 | `npm run check`      | typecheck + test + build                                        |
 
+`npm run dev` e `npm start` controllano prima che il binario di Electron sia presente e, se manca
+(per esempio con `ignore-scripts` attivo o un download fallito durante `npm install`), lo scaricano.
+
+### Problemi comuni
+
+- **`Error: Electron uninstall`** con una versione vecchia degli script: esegui
+  `node node_modules/electron/install.js`, poi `npm run dev`.
+- **Linux, errore su `chrome-sandbox`** ("SUID sandbox helper binary … not configured correctly",
+  frequente su Ubuntu 24.04): `sudo chown root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox`.
+
 Su Linux senza display lo smoke test va lanciato con `xvfb-run -a npm run test:e2e`.
 
 ## Provare il workflow
